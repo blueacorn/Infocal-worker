@@ -13,17 +13,17 @@ a day free, and competitive pricing beyond the free tier ($5/mnth for 50 million
 ## Features
 
 - **Heartbeat tracking** (`/heartbeat`)
-  Devices report in with device ID, type, version, etc.
+  Devices report in with product code, firmware, software version, etc.
 - **Active count** (`/count`)
-  Returns number of active devices in the last N seconds, with JSON or CSV output.
+  Returns number of active devices in the last N seconds.
 - **Metrics** (`/metrics`)
-  Analytics query to provide usage metrics grouped by any/multiple dimension(s).
-  Groups devices by one or more fields (`part_num`, `fw_version`, `sw_version`, `country`) with JSON or CSV output.
+  Query to provide usage metrics grouped by one or more dimension(s).
+  Groups devices by one or more fields (`part_num`, `fw_version`, `sw_version`, `country`)
 - **Device list** (`/list`)
-  Diagnostic to list all active devices, with JSON or CSV output.
+  Diagnostic to list all active devices.
 - **Authentication**
   - **Client token** (`X-Auth`) → required for client devices to send `/heartbeat`.
-  - **Admin token** (`X-Auth`) → required for analytics `/count`, `/list`, `/metrics`.
+  - **Admin token** (`X-Auth`) → required for reading out data `/count`, `/list`, `/metrics`.
 - **GDPR-compliant**
   - Provides country-level aggregation; does not store any personally-identifiable information,
 - **Cache control**
@@ -33,13 +33,16 @@ a day free, and competitive pricing beyond the free tier ($5/mnth for 50 million
 ---
 
 ## Project structure
-src/worker.ts       # Cloudflare worker implementation
-wrangler.jsonc      # Cloudflare Wrangler config
-schema.sql          # SQL schema
-README.md
+
+| item                  | description           |
+|-----------------------|-----------------------|
+| - **src/worker.ts**   | Worker implementation |
+| - **wrangler.jsonc**  | Wrangler config       |
+| - schema.sql          | Database schema       |
+| - README.md           | Documentation         |
 
 ## Database schema
-see schema.sql
+See [schema.sql](schema.sql)
 
 ---
 
@@ -49,43 +52,51 @@ to clone/fork and use this serverless application with your Garmin apps.
 
 ## Prerequisites
 
-- Node.js
-        brew install npm
+**Node.js**
 
-- Cloudflare Wrangler CLI
-        npm install -g wrangler
+`brew install npm`
+
+**Cloudflare Wrangler CLI**
+
+`npm install -g wrangler`
 
 
 ## Local Deployment (for testing/development)
 
-        # Login to your Cloudflare account
-        wrangler login
+```sh
+# Login to your Cloudflare account
+wrangler login
 
-        # create a local copy of database
-        wrangler d1 execute infocal-db --file=./schema.sql
+# create a local copy of database
+wrangler d1 execute infocal-db --file=./schema.sql
 
-        # start the worker (api endpoint http://localhost:8787)
-        wrangler dev --env dev
-
+# start the worker (api endpoint http://localhost:8787)
+wrangler dev --env dev
+```
 
 Note for testing, we use env.dev to pre-configure the test environment.
 See wrangler.jsonc for details of setup.
 
 ## Production Deployment
 
-        # Login to your Cloudflare account
-        wrangler login
+```sh
+# Login to your Cloudflare account
+wrangler login
 
-        # Create the remote (production) database
-        wrangler d1 execute infocal-db --file=./schema.sql --remote
+# Create the remote (production) database
+wrangler d1 execute infocal-db --file=./schema.sql --remote
 
-        # Set your production secrets in the cloudflare secrets manager
-        wrangler secret put CLIENT_TOKEN
-        wrangler secret put ADMIN_TOKEN
+# Set your production secrets in the cloudflare secrets manager
+wrangler secret put CLIENT_TOKEN
+wrangler secret put ADMIN_TOKEN
 
-        # Deploy your code
-        wrangler deploy
+# Deploy your code
+wrangler deploy
+```
 
+**NOTE:** You must save a secure copy of your application secrets (CLIENT_TOKEN,
+ADMIN_TOKEN) as once written to the Worker Secrets they are encrypted and
+cannot be retrieved.  You can only rotate the secret values.
 
 ## Development & Testing
 
@@ -119,7 +130,7 @@ curl -X POST "$URL/heartbeat?uid=test-123&part_num=F965&fw_version=15.23" -H "X-
 
 ### Active Devices Count endpoint
 
-Count the number of active devices in the last (window) seconds:
+Count the number of active devices within the last (window) seconds:
 
 ```sh
 curl "$URL$/count?window=3600" -H "X-Auth: $ADMIN_TOKEN"
@@ -136,7 +147,7 @@ timestamp,window,active
 1725408060,3600,123
 ```
 
-##### Metrics (analytics) endpoint
+##### Metrics endpoint
 
 Provide summary of usage, grouped by any dimension
 
@@ -186,8 +197,13 @@ wrangler tail infocal-worker
 
 ---
 
-# Privacy & GDPR
-*	Device telemetry stored: unique_id, part_num, fw_version, sw_version, country.
-*	IP addresses are never stored.
-*	All data is retained only as long as necessary for anonymized product usage analysis, product health monitoring, and service development.
+# Privacy & GDPR Compliant
+
+* This app collects 'heartbeat' messages, containing anonymized product/version information.
+* The heartbeat message contains: anonymized unique id, device part number, firmware version,
+  software version, connect iq version, language and country code, and recently-used features.
+* No peronallly-identifiable information or IP addresses are ever collected or stored.
+* Data is processed and retained only for the purpose of anonymized product usage,
+  product health, and service availability monitoring.
+
 

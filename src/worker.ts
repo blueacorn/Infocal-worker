@@ -75,6 +75,10 @@ async function router(request: Request, env: Env): Promise<Response> {
   // support ip blocking
   requireNotBlocked(clientIp);
 
+  // debug print headers
+  //var headers_str = [...request.headers.entries()].map(([k ,v]) => `${k}=${v}`).join(", ");
+  //console.debug("headers: " + headers_str);
+
   // check auth env is initialized
   if (!env.CLIENT_TOKEN || !env.ADMIN_TOKEN) throw new InternalError();
 
@@ -92,7 +96,7 @@ async function router(request: Request, env: Env): Promise<Response> {
 /* ===== Routes ===== */
 
 //! Client heartbeat endpoint
-//! Used for collecting anonymized device usage analytics (device family, firmware version, software version, etc.)
+//! Used for collecting anonymized device usage (device family, firmware version, software version, etc.)
 //!
 //! POST /heartbeat?uid=...&part=...[&fw=...&sw=]
 //!     uid     (required)unique identifier
