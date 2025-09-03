@@ -102,7 +102,7 @@ async function router(request: Request, env: Env): Promise<Response> {
 async function heartbeat(request: Request, env: Env): Promise<Response> {
   // read cloudflare metadata
   const cf = (request as any).cf;
-  const country = cf?.country;
+  const country = cf?.country || null;
 
   // read from query params
   const url = new URL(request.url);
@@ -128,7 +128,6 @@ async function heartbeat(request: Request, env: Env): Promise<Response> {
   `;
   await env.INFOCAL_DB.prepare(stmt).bind(uid, now, now, part, fw, sw, country).run();
 
-  // Avoid accidental caching anywhere
   return jsonOkResponse();
 }
 
@@ -152,13 +151,8 @@ async function count(request: Request, env: Env): Promise<Response> {
 
   if (format === "csv") {
     const header = "since,window,active\n";
-    const row = `${since},${windowSec},${active}\n`;
-    return new Response(header + row, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Cache-Control": "no-store"
-      }
-    });
+    const line = `${since},${windowSec},${active}\n`;
+    return csvResponse(header, line);
   } else {
     return jsonResponse({ since, window:windowSec, active });
   }
@@ -215,12 +209,7 @@ async function list(request: Request, env: Env): Promise<Response> {
         csvEscape(d.country)
       ].join(",")
     ).join("\n");
-    return new Response(header + lines, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Cache-Control": "no-store"
-      }
-    });
+    return csvResponse(header, lines);
   } else {
     return jsonResponse({ devices: results ?? [], windowSec });
   }
@@ -273,12 +262,7 @@ async function metrics(request: Request, env: Env): Promise<Response> {
       )
       .join("\n");
 
-    return new Response(header + lines, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8" ,
-        "Cache-Control": "no-store"
-      }
-    });
+    return csvResponse(header, lines);
   }
 
   return jsonResponse({ window:windowSec, timestamp:now, totalActive, results });
@@ -307,7 +291,6 @@ function getGroups(url:URL): string[] {
   for (const g of allgroups) {
     if (!["part_num", "fw_version", "sw_version", "country"].includes(g)) throw new BadRequestError("invalid groups");
   }
-
   return allgroups;
 }
 
@@ -320,19 +303,40 @@ function minMax(n: number, min: number, max: number) : number {
   return Math.min(max, Math.max(min, n));
 }
 
-function jsonResponse(data: Record<string, JsonValue>, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+//! Send response, and ensure proxies do not try to cache request
+//! no-store: don’t write it to disk anywhere.
+//! no-cache + must-revalidate: defend against intermediate caches.
+function csvResponse(header: string, lines: string): Response | PromiseLike<Response> {
+  return new Response(header + lines, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    }
   });
 }
 
+//! Send response, and ensure proxies do not try to cache request
+//! no-store: don’t write it to disk anywhere.
+//! no-cache + must-revalidate: defend against intermediate caches.
+function jsonResponse(data: Record<string, JsonValue>, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
+}
+
+//! Send response, and ensure proxies do not try to cache request
+//! no-store: don’t write it to disk anywhere.
+//! no-cache + must-revalidate: defend against intermediate caches.
 function jsonOkResponse(): Response {
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
     },
   });
 }
