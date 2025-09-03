@@ -139,7 +139,8 @@ async function heartbeat(request: Request, env: Env): Promise<Response> {
 async function count(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const windowSec = minMax( getIntOrDefault(url.searchParams.get("window"), SECONDS_IN_DAY), 1, SECONDS_IN_MONTH);
-  const since = unix_time() - windowSec;
+  const now = unix_time();
+  const since = now - windowSec;
   const format = getFormat(url);
 
   const { results } = await env.INFOCAL_DB
@@ -150,8 +151,8 @@ async function count(request: Request, env: Env): Promise<Response> {
   const active = results?.[0]?.active ?? 0;
 
   if (format === "csv") {
-    const header = "since,window,active\n";
-    const line = `${since},${windowSec},${active}\n`;
+    const header = "timestamp,window,active\n";
+    const line = `${now},${windowSec},${active}\n`;
     return csvResponse(header, line);
   } else {
     return jsonResponse({ since, window:windowSec, active });
