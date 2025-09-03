@@ -100,13 +100,16 @@ async function router(request: Request, env: Env): Promise<Response> {
 //!     fw      firmware version
 //!     sw      software version
 async function heartbeat(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
+  // read cloudflare metadata
+  const cf = (request as any).cf;
+  const country = cf?.country;
 
   // read from query params
+  const url = new URL(request.url);
   const uid = (url.searchParams.get("uid") || "").toString().trim();
   const part = (url.searchParams.get("part") || "").toString().trim();
-  const fw = (url.searchParams.get("fw") || "").toString().trim();
-  const sw = (url.searchParams.get("sw") || "").toString().trim();
+  const fw = (url.searchParams.get("fw") || "").toString().trim() || null;
+  const sw = (url.searchParams.get("sw") || "").toString().trim() || null;
   if (!uid) throw new BadRequestError("uid is required");
   if (!part) throw new BadRequestError("part is required");
 
@@ -114,15 +117,16 @@ async function heartbeat(request: Request, env: Env): Promise<Response> {
 
   // insert or update statement
   const stmt = `
-    INSERT INTO heartbeats (unique_id, first_seen, last_seen, part_num, fw_version, sw_version)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+    INSERT INTO heartbeats (unique_id, first_seen, last_seen, part_num, fw_version, sw_version, country)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
     ON CONFLICT(unique_id) DO UPDATE SET
       last_seen = excluded.last_seen,
       part_num = excluded.part_num,
       fw_version = excluded.fw_version,
-      sw_version = excluded.sw_version
+      sw_version = excluded.sw_version,
+      country = excluded.country
   `;
-  await env.INFOCAL_DB.prepare(stmt).bind(uid, now, now, part, fw, sw).run();
+  await env.INFOCAL_DB.prepare(stmt).bind(uid, now, now, part, fw, sw, country).run();
 
   // Avoid accidental caching anywhere
   return jsonOkResponse();
@@ -173,7 +177,14 @@ async function list(request: Request, env: Env): Promise<Response> {
 
   const { results } = await env.INFOCAL_DB
     .prepare(
-      `SELECT unique_id, first_seen, last_seen, part_num, fw_version, sw_version
+      `SELECT
+          unique_id,
+          first_seen,
+          last_seen,
+          part_num,
+          COALESCE(fw_version, 'Unknown') AS fw_version,
+          COALESCE(sw_version, 'Unknown') AS sw_version,
+          COALESCE(country, 'Unknown') AS country
        FROM heartbeats
        WHERE last_seen >= ?1
        ORDER BY last_seen DESC`
@@ -186,12 +197,13 @@ async function list(request: Request, env: Env): Promise<Response> {
       part_num: string;
       fw_version: string;
       sw_version: string;
+      country:string | null;
     }>();
 
   const devices = results ?? [];
 
   if (format === "csv") {
-    const header = "unique_id,first_seen,last_seen,part_num,fw_version,sw_version\n";
+    const header = "unique_id,first_seen,last_seen,part_num,fw_version,sw_version,country\n";
     const lines = devices.map(d =>
       [
         csvEscape(d.unique_id),
@@ -199,7 +211,8 @@ async function list(request: Request, env: Env): Promise<Response> {
         d.last_seen,
         csvEscape(d.part_num),
         csvEscape(d.fw_version),
-        csvEscape(d.sw_version)
+        csvEscape(d.sw_version),
+        csvEscape(d.country)
       ].join(",")
     ).join("\n");
     return new Response(header + lines, {
@@ -218,7 +231,7 @@ async function list(request: Request, env: Env): Promise<Response> {
 //!
 //! GET /metrics?window=3600&groups=part_num,fw_version&format=csv
 //!     window    (optional) time window to filter on last seen heartbeat; default=(1 day)
-//!     group[s]  (optional) comma-delimited list of metric to group by (part_num,fw_version,sw_version); default=part_num
+//!     group[s]  (optional) comma-delimited list of metric(s) to group by (part_num,fw_version,sw_version,country); default=part_num; max=3
 //!     format    (optional) response format (json|csv); default=json
 async function metrics(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -290,10 +303,9 @@ function getFormat(url: URL): string {
 function getGroups(url:URL): string[] {
   const groupline = (url.searchParams.get("group") || url.searchParams.get("groups") || "part_num").toLowerCase();
   const allgroups = unique(groupline.split(",").map(s => s.trim()));
-  if (allgroups.length > 3) throw new BadRequestError("invalid groups");
 
   for (const g of allgroups) {
-    if (!["part_num", "fw_version", "sw_version"].includes(g)) throw new BadRequestError("invalid group");
+    if (!["part_num", "fw_version", "sw_version", "country"].includes(g)) throw new BadRequestError("invalid groups");
   }
 
   return allgroups;
