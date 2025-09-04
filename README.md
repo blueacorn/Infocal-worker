@@ -240,6 +240,23 @@ local/remote, to ensure your migrations have been applied properly:
 wrangler d1 export infocal-db --no-data --output schema.sql [--local|--remote]
 ```
 
+### Apply database schema migrations
+Prepare a new (non-destructive) migration script under migrations/; run the migrations
+apply command to apply these migrations in order to the targeted database.
+
+Wrangler will remember which migrations have already been applied, so next time
+it will only apply any new migrations.
+
+WARNING: Test on local before applying to remote!
+
+```sh
+wrangler d1 migrations apply infocal-db [--local|--remote]
+```
+
+Re-export the schema.sql to check for correctness
+```sh
+wrangler d1 export infocal-db --no-data --output schema.sql [--local|--remote]
+```
 
 ### Delete inactive entries from the table
 Deletes entries from the heartbeats table that have not been updated in 30 days.
