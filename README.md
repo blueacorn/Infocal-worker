@@ -91,8 +91,9 @@ wrangler d1 execute infocal-db --file=./schema/schema.sql --remote
 wrangler secret put CLIENT_TOKEN
 wrangler secret put ADMIN_TOKEN
 
-# Deploy your code
-wrangler deploy
+# Deploy your code to production
+# (note for production we use the default environment)
+wrangler deploy --env=""
 ```
 
 **NOTE:** You must save a secure copy of your application secrets (CLIENT_TOKEN,
