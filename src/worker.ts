@@ -90,7 +90,7 @@ async function router(request: Request, env: Env): Promise<Response> {
   if (path === "/list"    && method === "GET")  { requireAuthToken(request, env.ADMIN_TOKEN); return list(request, env); }
   if (path === "/metrics" && method === "GET")  { requireAuthToken(request, env.ADMIN_TOKEN); return metrics(request, env); }
 
-  throw new BadRequestError();
+  throw new BadRequestError("path invalid");
 }
 
 /* ===== Routes ===== */
@@ -118,8 +118,8 @@ async function heartbeat(request: Request, env: Env): Promise<Response> {
   const lang = (url.searchParams.get("lang") || "").toString().trim() || null;
   const feat = (url.searchParams.get("feat") || "").toString().trim() || null;
 
-  if (!uid) throw new BadRequestError("uid is required");
-  if (!part) throw new BadRequestError("part is required");
+  if (!uid) throw new BadRequestError("uid required");
+  if (!part) throw new BadRequestError("part required");
 
   const now = unix_time();
 
@@ -155,18 +155,18 @@ async function count(request: Request, env: Env): Promise<Response> {
   const format = getFormat(url);
 
   const { results } = await env.INFOCAL_DB
-    .prepare(`SELECT COUNT(*) AS active FROM heartbeats WHERE last_seen >= ?1`)
+    .prepare(`SELECT COUNT(*) AS count FROM heartbeats WHERE last_seen >= ?1`)
     .bind(since)
-    .all<{ active: number }>();
+    .all<{ count: number }>();
 
-  const active = results?.[0]?.active ?? 0;
+  const count = results?.[0]?.count ?? 0;
 
   if (format === "csv") {
-    const header = "timestamp,window,active\n";
-    const line = `${now},${windowSec},${active}\n`;
+    const header = "timestamp,window,count\n";
+    const line = `${now},${windowSec},${count}\n`;
     return csvResponse(header, line);
   } else {
-    return jsonResponse({ since, window:windowSec, active });
+    return jsonResponse({ timestamp:now, window:windowSec, count });
   }
 }
 
@@ -178,7 +178,8 @@ async function count(request: Request, env: Env): Promise<Response> {
 async function list(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const windowSec = minMax( getIntOrDefault(url.searchParams.get("window"), SECONDS_IN_DAY), 1, SECONDS_IN_MONTH);
-  const since = unix_time() - windowSec;
+  const now = unix_time();
+  const since = now - windowSec;
   const format = getFormat(url);
 
   const { results } = await env.INFOCAL_DB
@@ -212,6 +213,8 @@ async function list(request: Request, env: Env): Promise<Response> {
       feat:string;
     }>() ?? [];
 
+    const count = results.length;
+
   if (format === "csv") {
     const header = "unique_id,first_seen,last_seen,part_num,fw_version,sw_version,ciq_version,country,lang,feat\n";
     const lines = results.map(d =>
@@ -230,10 +233,9 @@ async function list(request: Request, env: Env): Promise<Response> {
     ).join("\n");
     return csvResponse(header, lines);
   } else {
-    return jsonResponse({ devices: results, window: windowSec });
+    return jsonResponse({ timestamp:now, window: windowSec, count, devices: results });
   }
 }
-
 
 //! Summarize the devices seen recently, grouped by part number and firmware version
 //!
@@ -272,7 +274,7 @@ async function metrics(request: Request, env: Env): Promise<Response> {
     count: number;
   }>() ?? [];
 
-  const totalActive = results.reduce((s, r) => s + (r.count || 0), 0);
+  const totalCount = results.reduce((s, r) => s + (r.count || 0), 0);
 
   if (format === "csv") {
     const columns = [...groups, "count"];
@@ -288,7 +290,7 @@ async function metrics(request: Request, env: Env): Promise<Response> {
     return csvResponse(header, lines);
   }
 
-  return jsonResponse({ window:windowSec, timestamp:now, totalActive, results });
+  return jsonResponse({ timestamp:now, window:windowSec, count:totalCount, results });
 }
 
 // ---------- utils ----------
@@ -303,7 +305,7 @@ function unix_time(): number {
 
 function getFormat(url: URL): string {
   const format = (url.searchParams.get("format") || "json").toLowerCase();
-  if (!["json", "csv"].includes(format)) throw new BadRequestError("invalid format");
+  if (!["json", "csv"].includes(format)) throw new BadRequestError("format invalid");
   return format;
 }
 
@@ -313,7 +315,7 @@ function getGroups(url:URL): string[] {
 
   for (const g of allgroups) {
     if (!["part_num", "fw_version", "sw_version", "ciq_version", "country", "lang", "feat"].includes(g)) {
-      throw new BadRequestError("invalid groups");
+      throw new BadRequestError("groups invalid");
     }
   }
   return allgroups;

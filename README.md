@@ -43,7 +43,7 @@ a day free, and competitive pricing beyond the free tier ($5/mnth for 50 million
 | - README.md           | Documentation         |
 
 ## Database schema
-See [schema.sql](schema/schema.sql)
+See [schema.sql](schema.sql)
 
 ---
 
@@ -69,7 +69,7 @@ to clone/fork and use this serverless application with your Garmin apps.
 wrangler login
 
 # create a local copy of database
-wrangler d1 execute infocal-db --file=./schema/schema.sql
+wrangler d1 execute infocal-db --file=./schema.sql
 
 # start the worker (api endpoint http://localhost:8787)
 wrangler dev --env dev
@@ -85,7 +85,7 @@ See wrangler.jsonc for details of setup.
 wrangler login
 
 # Create the remote (production) database
-wrangler d1 execute infocal-db --file=./schema/schema.sql --remote
+wrangler d1 execute infocal-db --file=./schema.sql --remote
 
 # Set your production secrets in the cloudflare secrets manager
 wrangler secret put CLIENT_TOKEN
