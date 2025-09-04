@@ -1,4 +1,4 @@
--- Table schema
+-- Heartbeats Table schema
 -- note text columns include simple safety checks (length)
 CREATE TABLE IF NOT EXISTS heartbeats (
   -- Required columns
