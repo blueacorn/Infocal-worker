@@ -232,6 +232,15 @@ wrangler d1 execute infocal-db \
 
 ## Maintenance commands
 
+### Export/diff full database schema.sql
+Maintain schema.sql in version control, and use this command to confirm/diff to
+local/remote, to ensure your migrations have been applied properly:
+
+```sh
+wrangler d1 export infocal-db --no-data --output schema.sql [--local|--remote]
+```
+
+
 ### Delete inactive entries from the table
 Deletes entries from the heartbeats table that have not been updated in 30 days.
 
