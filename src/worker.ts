@@ -114,6 +114,10 @@ async function heartbeat(request: Request, env: Env): Promise<Response> {
   const part = (url.searchParams.get("part") || "").toString().trim();
   const fw = (url.searchParams.get("fw") || "").toString().trim() || null;
   const sw = (url.searchParams.get("sw") || "").toString().trim() || null;
+  const ciq = (url.searchParams.get("ciq") || "").toString().trim() || null;
+  const lang = (url.searchParams.get("lang") || "").toString().trim() || null;
+  const feat = (url.searchParams.get("feat") || "").toString().trim() || null;
+
   if (!uid) throw new BadRequestError("uid is required");
   if (!part) throw new BadRequestError("part is required");
 
@@ -121,16 +125,19 @@ async function heartbeat(request: Request, env: Env): Promise<Response> {
 
   // insert or update statement
   const stmt = `
-    INSERT INTO heartbeats (unique_id, first_seen, last_seen, part_num, fw_version, sw_version, country)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+    INSERT INTO heartbeats (unique_id, first_seen, last_seen, part_num, fw_version, sw_version, ciq_version, country, lang, feat)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, $8, $9, $10)
     ON CONFLICT(unique_id) DO UPDATE SET
       last_seen = excluded.last_seen,
       part_num = excluded.part_num,
       fw_version = excluded.fw_version,
       sw_version = excluded.sw_version,
-      country = excluded.country
+      ciq_version = excluded.ciq_version,
+      country = excluded.country,
+      lang = excluded.lang,
+      feat = excluded.feat
   `;
-  await env.INFOCAL_DB.prepare(stmt).bind(uid, now, now, part, fw, sw, country).run();
+  await env.INFOCAL_DB.prepare(stmt).bind(uid, now, now, part, fw, sw, ciq, country, lang, feat).run();
 
   return jsonOkResponse();
 }
@@ -183,7 +190,10 @@ async function list(request: Request, env: Env): Promise<Response> {
           part_num,
           COALESCE(fw_version, 'Unknown') AS fw_version,
           COALESCE(sw_version, 'Unknown') AS sw_version,
-          COALESCE(country, 'Unknown') AS country
+          COALESCE(ciq_version, 'Unknown') AS ciq_version,
+          COALESCE(country, 'Unknown') AS country,
+          COALESCE(lang, 'Unknown') AS lang,
+          COALESCE(feat, 'Unknown') AS feat
        FROM heartbeats
        WHERE last_seen >= ?1
        ORDER BY last_seen DESC`
@@ -196,14 +206,15 @@ async function list(request: Request, env: Env): Promise<Response> {
       part_num: string;
       fw_version: string;
       sw_version: string;
-      country:string | null;
-    }>();
-
-  const devices = results ?? [];
+      ciq_version:string;
+      country:string;
+      lang:string;
+      feat:string;
+    }>() ?? [];
 
   if (format === "csv") {
-    const header = "unique_id,first_seen,last_seen,part_num,fw_version,sw_version,country\n";
-    const lines = devices.map(d =>
+    const header = "unique_id,first_seen,last_seen,part_num,fw_version,sw_version,ciq_version,country,lang,feat\n";
+    const lines = results.map(d =>
       [
         csvEscape(d.unique_id),
         d.first_seen,
@@ -211,12 +222,15 @@ async function list(request: Request, env: Env): Promise<Response> {
         csvEscape(d.part_num),
         csvEscape(d.fw_version),
         csvEscape(d.sw_version),
-        csvEscape(d.country)
+        csvEscape(d.ciq_version),
+        csvEscape(d.country),
+        csvEscape(d.lang),
+        csvEscape(d.feat),
       ].join(",")
     ).join("\n");
     return csvResponse(header, lines);
   } else {
-    return jsonResponse({ devices: results ?? [], windowSec });
+    return jsonResponse({ devices: results, window: windowSec });
   }
 }
 
@@ -251,6 +265,10 @@ async function metrics(request: Request, env: Env): Promise<Response> {
     part_num: string;
     fw_version: string;
     sw_version: string;
+    ciq_version: string;
+    country: string;
+    lang: string;
+    feat: string;
     count: number;
   }>() ?? [];
 
@@ -294,7 +312,9 @@ function getGroups(url:URL): string[] {
   const allgroups = unique(groupline.split(",").map(s => s.trim()));
 
   for (const g of allgroups) {
-    if (!["part_num", "fw_version", "sw_version", "country"].includes(g)) throw new BadRequestError("invalid groups");
+    if (!["part_num", "fw_version", "sw_version", "ciq_version", "country", "lang", "feat"].includes(g)) {
+      throw new BadRequestError("invalid groups");
+    }
   }
   return allgroups;
 }

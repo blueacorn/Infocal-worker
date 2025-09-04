@@ -18,7 +18,8 @@ a day free, and competitive pricing beyond the free tier ($5/mnth for 50 million
   Returns number of active devices in the last N seconds.
 - **Metrics** (`/metrics`)
   Query to provide usage metrics grouped by one or more dimension(s).
-  Groups devices by one or more fields (`part_num`, `fw_version`, `sw_version`, `country`)
+  Groups devices by one or more fields (`part_num`, `fw_version`, `sw_version`,
+  `ciq_version`, `country`, `lang`, `feat`)
 - **Device list** (`/list`)
   Diagnostic to list all active devices.
 - **Authentication**
@@ -28,7 +29,7 @@ a day free, and competitive pricing beyond the free tier ($5/mnth for 50 million
   - Provides country-level aggregation; does not store any personally-identifiable information,
 - **Cache control**
   All responses are served with `Cache-Control: no-store, no-cache, must-revalidate`
-  to help ensure queries never get served stale data by any intermediary proxies.
+  to help ensure queries never get stored / cached by any intermediary proxies.
 
 ---
 
@@ -38,7 +39,7 @@ a day free, and competitive pricing beyond the free tier ($5/mnth for 50 million
 |-----------------------|-----------------------|
 | - **src/worker.ts**   | Worker implementation |
 | - **wrangler.jsonc**  | Wrangler config       |
-| - schema/schema.sql   | Database schema       |
+| - schema.sql          | Database schema       |
 | - README.md           | Documentation         |
 
 ## Database schema
@@ -122,7 +123,7 @@ export ADMIN_TOKEN=<your admin secret>
 Simulate a client device sending a heartbeat:
 
 ```sh
-curl -X POST "$URL/heartbeat?uid=test-123&part_num=F965&fw_version=15.23" -H "X-Auth: $CLIENT_TOKEN"
+curl -X POST "$URL/heartbeat?uid=test-123&part=F965&fw=15.23" -H "X-Auth: $CLIENT_TOKEN"
 
 # response:
 { "ok": true, "lastSeen": 1725408000 }
@@ -295,6 +296,7 @@ WHERE deleted_at >= strftime('%s','now') - 3600; -- restore last hour
 
 ### Apply a schema change
 Used for adding/removing tables/columns/triggers etc.
+NOTE: Use wrangler migrations instead to manage schema changes in local/remote
 
 In this example, the schema is modifying a trigger to the heartbeats table to automatically
 archive deleted rows to the heartbeats-archive table (for protection against accidental deletes)
@@ -302,6 +304,41 @@ archive deleted rows to the heartbeats-archive table (for protection against acc
 wrangler d1 execute infocal-db --file=./schema/tr_heartbeats_delete_to_archive.sql [--local|--remote]
 ```
 
+
+---
+
+## Credentials Management
+
+It is strongly recommended to store your CLIENT and ADMIN tokens in a persistent, safe
+place (such as a secure key/password manager).
+
+For testing/admin, a good option is to store them in your machine keychain.
+Below are instructions for managing the token in the macOS keychain.
+
+### Store in macOS Keychain
+Stores tokens in the system Keychain and fetches them on demand:
+```sh
+# save (one-time)
+security add-generic-password -a "$USER" -s infocal-admin  -w '<ADMIN TOKEN HERE>'  >/dev/null
+security add-generic-password -a "$USER" -s infocal-client -w '<CLIENT TOKEN HERE>>' >/dev/null
+```
+
+### Load from macOS Keychain
+
+```sh
+# load into env when needed
+export ADMIN_TOKEN="$(security find-generic-password -s infocal-admin  -w 2>/dev/null)"
+export CLIENT_TOKEN="$(security find-generic-password -s infocal-client -w 2>/dev/null)"
+```
+
+### Delete from keychain
+
+WARNING: Make sure you have a copy of your tokens elsewhere!
+
+```sh
+security delete-generic-password -s infocal-admin  2>/dev/null
+security delete-generic-password -s infocal-client 2>/dev/null
+```
 
 ---
 
