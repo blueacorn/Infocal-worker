@@ -20,11 +20,11 @@ BEGIN
     part_num,
     fw_version,
     sw_version,
-    country,
     ciq_version,
+    country,
     lang,
     feat,
-    deleted_at -- deleted_at column
+    deleted_at
   )
   VALUES (
     OLD.unique_id,
@@ -33,10 +33,10 @@ BEGIN
     OLD.part_num,
     OLD.fw_version,
     OLD.sw_version,
-    OLD.country,
     OLD.ciq_version,
+    OLD.country,
     OLD.lang,
     OLD.feat,
-    strftime('%s','now') -- deleted_at column
+    strftime('%s','now')
   );
 END;

@@ -1,11 +1,15 @@
 PRAGMA defer_foreign_keys=TRUE;
 CREATE TABLE heartbeats (
-  
+  -- Required columns
   unique_id TEXT PRIMARY KEY,
   first_seen INTEGER NOT NULL,
   last_seen INTEGER NOT NULL,
   part_num TEXT NOT NULL CHECK (length(part_num) <= 32),
-  fw_version TEXT CHECK (length(fw_version) <= 16), sw_version TEXT CHECK (length(sw_version) <= 16), country TEXT CHECK (length(country) <= 8), ciq_version TEXT CHECK (length(ciq_version) <= 16), lang        TEXT CHECK (length(lang)        <= 16), feat        TEXT CHECK (length(feat)       <= 256));
+  fw_version TEXT CHECK (length(fw_version) <= 16),
+  sw_version TEXT CHECK (length(sw_version) <= 16),
+  country TEXT CHECK (length(country) <= 8)
+, ciq_version TEXT CHECK (length(ciq_version) <= 16), lang        TEXT CHECK (length(lang)        <= 16), feat        TEXT CHECK (length(feat)       <= 256));
+ANALYZE sqlite_schema;
 CREATE TABLE d1_migrations(
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		name       TEXT UNIQUE,
@@ -39,11 +43,11 @@ BEGIN
     part_num,
     fw_version,
     sw_version,
-    country,
     ciq_version,
+    country,
     lang,
     feat,
-    deleted_at 
+    deleted_at
   )
   VALUES (
     OLD.unique_id,
@@ -52,10 +56,10 @@ BEGIN
     OLD.part_num,
     OLD.fw_version,
     OLD.sw_version,
-    OLD.country,
     OLD.ciq_version,
+    OLD.country,
     OLD.lang,
     OLD.feat,
-    strftime('%s','now') 
+    strftime('%s','now')
   );
 END;
