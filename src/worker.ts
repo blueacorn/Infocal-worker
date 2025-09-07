@@ -46,7 +46,7 @@ export default {
     } catch (err: any) {
       // Do not log blocked requests (to prevent log flooding)
       if (err instanceof StealthBlockedError) {
-        return jsonOkResponse();
+        return jsonResponse({ sw: 27 }, 200); // fake response
       }
 
       // Log other errors
@@ -139,7 +139,7 @@ async function heartbeat(request: Request, env: Env): Promise<Response> {
   `;
   await env.INFOCAL_DB.prepare(stmt).bind(uid, now, now, part, fw, sw, ciq, country, lang, feat).run();
 
-  return jsonOkResponse();
+  return jsonResponse({ sw: sw });
 }
 
 //! Count the number of devices seen recently
@@ -348,19 +348,6 @@ function csvResponse(header: string, lines: string): Response | PromiseLike<Resp
 function jsonResponse(data: Record<string, JsonValue>, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-    },
-  });
-}
-
-//! Send response, and ensure proxies do not try to cache request
-//! no-store: don’t write it to disk anywhere.
-//! no-cache + must-revalidate: defend against intermediate caches.
-function jsonOkResponse(): Response {
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate",
